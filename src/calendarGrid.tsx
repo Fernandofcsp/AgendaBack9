@@ -1,39 +1,48 @@
-// src/CalendarGrid.tsx
 import React from 'react';
 
-interface CalendarGridProps {
-  events: any[];
+interface Event {
+  id: string;
+  summary: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
 }
 
-const CalendarGrid: React.FC<CalendarGridProps> = ({ events }) => {
-  // Organiza eventos por hora
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+interface CalendarGridProps {
+  events: Event[];
+  refreshEvents: () => void;
+}
 
-  // Filtra eventos por hora
-  const getEventsByHour = (hour: number) => {
-    return events.filter(event => {
-      const eventStartHour = new Date(event.start.dateTime).getHours();
-      return eventStartHour === hour;
-    });
+const CalendarGrid: React.FC<CalendarGridProps> = ({ events, refreshEvents }) => {
+  // Función para formatear la fecha y hora a un formato legible
+  const formatDate = (dateTime: string) => {
+    const date = new Date(dateTime);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
   };
 
+  // Renderiza la cuadrícula de eventos
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-      <div className="col-span-1 bg-gray-200 p-2 font-bold text-center">
-        Hora
-      </div>
-      {hours.map(hour => (
-        <div key={hour} className="flex flex-col border border-gray-300 rounded-md">
-          <div className="bg-gray-100 p-2 font-semibold">{hour}:00</div>
-          <div className="flex flex-col p-2">
-            {getEventsByHour(hour).map(event => (
-              <div key={event.id} className="bg-blue-100 p-2 mb-2 rounded shadow-sm">
-                {event.summary}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className="calendar-grid">
+      <h2>Eventos</h2>
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resumen</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inicio</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fin</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {events.map(event => (
+            <tr key={event.id}>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{event.summary}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(event.start.dateTime)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(event.end.dateTime)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* Botón para refrescar eventos */}
+      <button onClick={refreshEvents} className="mt-4 p-2 bg-green-500 text-white rounded">Refrescar</button>
     </div>
   );
 };

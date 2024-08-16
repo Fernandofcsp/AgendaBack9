@@ -1,70 +1,97 @@
-import React, { useState, useEffect } from 'react';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
-import axios from 'axios';
-import CalendarGrid from './calendarGrid';
+import React, { useEffect, useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { gapi } from 'gapi-script';
+
+interface EventData {
+    summary: string;
+    start: { dateTime: string };
+    end: { dateTime: string };
+}
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [events, setEvents] = useState<any[]>([]);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+    const CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID!;
+    const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY!;
+    const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
 
-  useEffect(() => {
-    if (isAuthenticated && accessToken) {
-      fetchEvents();
-    }
-  }, [isAuthenticated, accessToken]);
+    const [events, setEvents] = useState<EventData[]>([]);
+    // const [selectedView, setSelectedView] = useState('day');
+    const [startDate, setStartDate] = useState<Date | null>(new Date());
+    // const [endDate, setEndDate] = useState<Date | null>(new Date());
 
-  const fetchEvents = async () => {
-    if (!accessToken) return;
-    try {
-      const response = await axios.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-      setEvents(response.data.items);
-    } catch (error) {
-      console.error('Error fetching events:', error);
-    }
-  };
+    useEffect(() => {
+      function start() {
+          (window as any).gapi.client.init({
+              apiKey: API_KEY,
+              clientId: CLIENT_ID,
+              scope: SCOPES,
+              discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"]
+          }).then(() => {
+              (window as any).gapi.auth2.getAuthInstance().signIn().then(() => {
+                  loadEvents();
+              });
+          });
+      }
+  
+      function loadEvents() {
+          (window as any).gapi.client.calendar.events.list({
+              calendarId: 'primary',
+              timeMin: new Date().toISOString(),
+              showDeleted: false,
+              singleEvents: true,
+              maxResults: 10,
+              orderBy: 'startTime',
+          }).then((response: { result: { items: EventData[] } }) => {
+              setEvents(response.result.items);
+          });
+      }
+  
+      gapi.load('client:auth2', start);
+  }, []);
+  
+  
 
-  const handleLoginSuccess = (response: any) => {
-    setAccessToken(response.credential);
-    setIsAuthenticated(true);
-  };
+    const renderEvents = () => {
+        const grid = Array.from({ length: 24 }, () => Array(3).fill(null));
 
-  const handleLogout = () => {
-    setAccessToken(null);
-    setIsAuthenticated(false);
-    // Manually revoke the token if necessary
-    if (accessToken) {
-      fetch(`https://accounts.google.com/o/oauth2/revoke?token=${accessToken}`);
-    }
-  };
+        events.forEach((event: EventData) => {
+            const startHour = new Date(event.start.dateTime).getHours();
+            const endHour = new Date(event.end.dateTime).getHours();
 
-  return (
-    <div>
-      {!isAuthenticated ? (
-        <GoogleLogin
-          onSuccess={handleLoginSuccess}
-          onError={() => console.error('Login failed')}
-        />
-      ) : (
-        <div>
-          <button onClick={handleLogout}>
-            Logout
-          </button>
-          <CalendarGrid events={events} />
+            for (let hourIndex = startHour; hourIndex < endHour; hourIndex++) {
+                const columnIndex = grid[hourIndex].findIndex(col => col === null);
+                grid[hourIndex][columnIndex] = event.summary;
+            }
+        });
+
+        return grid.map((hour, hourIndex) => (
+            <div key={hourIndex} className="grid grid-cols-3 gap-2">
+                {hour.map((event, index) => (
+                    <div key={index} className="border p-2">
+                        {event || ''}
+                    </div>
+                ))}
+            </div>
+        ));
+    };
+
+    const handleDateChange = (date: Date | null) => {
+        setStartDate(date);
+        // setEndDate(date);
+    };
+
+    return (
+        <div className="App pt-4">
+            <h1 className="mb-4 text-2xl font-bold">React App with Google Calendar API!</h1>
+            <DatePicker selected={startDate} onChange={handleDateChange} />
+            <div className="flex justify-center mb-4">
+                {/* <button onClick={() => setSelectedView('day')} className="px-4 py-2 border">Day</button> */}
+                {/* <button onClick={() => setSelectedView('week')} className="px-4 py-2 border">Week</button>
+                <button onClick={() => setSelectedView('month')} className="px-4 py-2 border">Month</button> */}
+            </div>
+            <div className="grid-container">{renderEvents()}</div>
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
-export default function AppWrapper() {
-  return (
-    <GoogleOAuthProvider clientId="805933778908-b9ds0nhv2ce7navd3drsu5c8mljbjeop.apps.googleusercontent.com">
-      <App />
-    </GoogleOAuthProvider>
-  );
-}
+export default App;
